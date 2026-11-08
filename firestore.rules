@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidNote(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 500000 &&
+             data.category is string && data.category.size() <= 60 &&
+             data.tags is list && data.tags.size() <= 30 &&
+             (data.tags.size() == 0 || data.tags[0] is string) &&
+             data.colorTheme is string && data.colorTheme.size() <= 30 &&
+             data.isVault is bool &&
+             data.isPinned is bool &&
+             data.isArchived is bool &&
+             data.noteType is string && data.noteType in ['text', 'python', 'drawing', 'photo'] &&
+             (!('drawingData' in data) || data.drawingData == null || (data.drawingData is string && data.drawingData.size() <= 500000)) &&
+             (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 2000000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidJarvisMessage(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.sender in ['user', 'jarvis'] &&
+             data.message is string && data.message.size() <= 20000 &&
+             (!('pythonCode' in data) || data.pythonCode == null || (data.pythonCode is string && data.pythonCode.size() <= 50000)) &&
+             (!('suggestedCategory' in data) || data.suggestedCategory == null || (data.suggestedCategory is string && data.suggestedCategory.size() <= 60)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidUserSettings(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.fontFamily is string && data.fontFamily.size() <= 50 &&
+             data.fontSize is string && data.fontSize.size() <= 30 &&
+             data.terminalTheme is string && data.terminalTheme.size() <= 50 &&
+             data.vaultPin is string && data.vaultPin.size() <= 64 &&
+             data.userName is string && data.userName.size() <= 50 &&
+             (!('geminiApiKey' in data) || data.geminiApiKey == null || (data.geminiApiKey is string && data.geminiApiKey.size() <= 200)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+
+      match /notes/{noteId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(noteId) && isValidNote(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(noteId) && isValidNote(request.resource.data) &&
+                         request.resource.data.userId == resource.data.userId &&
+                         request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      match /jarvis_messages/{messageId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(messageId) && isValidJarvisMessage(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(messageId) && isValidJarvisMessage(request.resource.data) &&
+                         request.resource.data.userId == resource.data.userId &&
+                         request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+
+      match /settings/{settingsId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(settingsId) && isValidUserSettings(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(settingsId) && isValidUserSettings(request.resource.data) &&
+                         request.resource.data.userId == resource.data.userId &&
+                         request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId) && isValidId(settingsId);
+      }
+    }
+  }
+}

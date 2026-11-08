@@ -1,0 +1,6 @@
+{
+  "name": "Anmol Notes",
+  "description": "Advanced hacker & developer-themed notes, Termux terminal, Python suite, Jarvis AI with custom Gemini API key, drawing pad, photo editor, and utility toolbox crafted for Anamol.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
